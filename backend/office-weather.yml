@@ -1,0 +1,37 @@
+name: office-display data
+on:
+  schedule:
+    - cron: "*/15 * * * *"        # offices: MET forecast + station reading + radar (free, public; no keys)
+    - cron: "23 */3 * * *"        # + ECMWF grids + NDBC buoy mirror
+    - cron: "41 4 * * *"          # + meteor detections aggregate (daily)
+  workflow_dispatch: {}           # manual run = everything
+permissions: { contents: read }
+concurrency: { group: office-display-data, cancel-in-progress: true }
+jobs:
+  fetch-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r backend/requirements.txt
+      - name: Fetch
+        working-directory: backend
+        env:
+          OFFICES: offices.json
+          POINTS_FILE: grid-points.json
+          SKIP_GRIDS:      ${{ github.event.schedule == '*/15 * * * *' && '1' || '0' }}
+          PUBLISH_NDBC:    ${{ github.event.schedule == '*/15 * * * *' && '0' || '1' }}
+          PUBLISH_METEORS: ${{ (github.event.schedule == '41 4 * * *' || github.event_name == 'workflow_dispatch') && '1' || '0' }}
+        run: python3 office_weather.py
+      - name: Publish to HubSpot Files (Service Key with the files scope; a legacy private-app token also works)
+        working-directory: backend
+        env:
+          HUBSPOT_SERVICE_KEY: ${{ secrets.HUBSPOT_SERVICE_KEY }}
+          HUBSPOT_PRIVATE_APP_TOKEN: ${{ secrets.HUBSPOT_PRIVATE_APP_TOKEN }}
+          HUBSPOT_FOLDER: Office_Screen
+        run: |
+          FILES="office-weather.json"
+          for f in office-fields.json ndbc-latest_obs.txt meteors.json; do [ -f "$f" ] && FILES="$FILES $f"; done
+          python3 hubspot_upload.py $FILES
