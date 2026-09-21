@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """hubspot_upload.py — replace files in HubSpot Files (Files API v3) so their public URLs stay stable.
 
-Env: HUBSPOT_PRIVATE_APP_TOKEN (scope: files), HUBSPOT_FOLDER (default Office_Screen), DRY_RUN=1 to print only.
+Env: HUBSPOT_SERVICE_KEY (Development -> Keys -> Service keys, scope: files) or a legacy HUBSPOT_PRIVATE_APP_TOKEN;
+HUBSPOT_FOLDER (default Office_Screen), DRY_RUN=1 to print only.
 Usage: python3 hubspot_upload.py office-weather.json office-fields.json
 Behaviour (HubSpot Files API v3, docs 2026-09): search the folder for the file; if found -> PUT /files/v3/files/{id}
 (replace file data, URL unchanged); else -> POST /files/v3/files with folderPath, fileName and options
@@ -9,7 +10,8 @@ Behaviour (HubSpot Files API v3, docs 2026-09): search the folder for the file; 
 """
 import os, sys, json, mimetypes, uuid, urllib.request, urllib.parse
 
-TOKEN = os.environ.get('HUBSPOT_PRIVATE_APP_TOKEN'); FOLDER = os.environ.get('HUBSPOT_FOLDER', 'Office_Screen'); DRY = os.environ.get('DRY_RUN') == '1'
+# Service Key (current) or legacy private-app token: both are Bearer tokens
+TOKEN = os.environ.get('HUBSPOT_SERVICE_KEY') or os.environ.get('HUBSPOT_PRIVATE_APP_TOKEN'); FOLDER = os.environ.get('HUBSPOT_FOLDER', 'Office_Screen'); DRY = os.environ.get('DRY_RUN') == '1'
 API = 'https://api.hubapi.com'
 
 def call(method, path, body=None, headers=None, raw=None):
@@ -49,5 +51,5 @@ def upload(path):
     print('uploaded', name, '->', res.get('url') or res.get('id'))
 
 if __name__ == '__main__':
-    if not TOKEN and not DRY: sys.exit('HUBSPOT_PRIVATE_APP_TOKEN missing (or set DRY_RUN=1)')
+    if not TOKEN and not DRY: sys.exit('HUBSPOT_SERVICE_KEY missing (or set DRY_RUN=1)')
     for p in sys.argv[1:]: upload(p)

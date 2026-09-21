@@ -23,8 +23,9 @@ and wave grids. No provider key anywhere. The display carries the attribution li
 ## Set-up for option 2 (~15 minutes)
 1. Put `backend/` and `.github/workflows/office-weather.yml` in a repository (private is fine).
 2. Edit `offices.json` — one entry per screen location.
-3. HubSpot → Settings → Integrations → Private Apps → Create → scope `files` → copy the token.
-4. Repository → Settings → Secrets and variables → Actions → New repository secret `HUBSPOT_PRIVATE_APP_TOKEN`.
+3. HubSpot → **Development → Keys → Service keys → Create service key** → scope `files` → Show → copy the key. (Service Keys
+   replace UI-created private apps, which HubSpot now lists as Legacy Apps and stops creating on 2026-10-26.)
+4. Repository → Settings → Secrets and variables → Actions → New repository secret `HUBSPOT_SERVICE_KEY`.
 5. Actions → *office-display weather* → Run workflow. Expect `offices 3/3 with weather` and two upload lines.
 6. Nothing to change in HubSpot: the loader already points the display at the two file URLs; until the first run the
    display uses option 1 by itself.
