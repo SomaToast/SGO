@@ -4,9 +4,9 @@
 Env: HUBSPOT_SERVICE_KEY (Development -> Keys -> Service keys, scope: files) or a legacy HUBSPOT_PRIVATE_APP_TOKEN;
 HUBSPOT_FOLDER (default Office_Screen), DRY_RUN=1 to print only.
 Usage: python3 hubspot_upload.py office-weather.json office-fields.json
-Behaviour (HubSpot Files API v3, docs 2026-09): search the folder for the file; if found -> PUT /files/v3/files/{id}
-(replace file data, URL unchanged); else -> POST /files/v3/files with folderPath, fileName and options
-{access: PUBLIC_NOT_INDEXABLE, overwrite: true}. The owner's first Run workflow is the live test.
+Behaviour (HubSpot Files API v3, verified 2026-09-21): POST /files/v3/files as multipart with folderPath, fileName and
+options {access: PUBLIC_NOT_INDEXABLE, overwrite: true}. Overwrite replaces a same-named file in the same folder; the
+public hubfs URL is path-based, so the display's URLs do not change.
 """
 import os, sys, json, mimetypes, uuid, urllib.request, urllib.parse, urllib.error
 
@@ -37,25 +37,18 @@ def multipart(fields, filename, content, ctype):
     out += f'--{b}\r\nContent-Disposition: form-data; name="file"; filename="{filename}"\r\nContent-Type: {ctype}\r\n\r\n'.encode() + content + f'\r\n--{b}--\r\n'.encode()
     return out, f'multipart/form-data; boundary={b}'
 
-def find_file(name):
-    stem, ext = name.rsplit('.', 1)
-    res = call('GET', f'/files/v3/files/search?name={urllib.parse.quote(stem)}&extension={ext}&limit=50')
-    for f in res.get('results', []):
-        if f.get('name') == stem and f.get('extension') == ext and (f.get('path') or '').strip('/').startswith(FOLDER.strip('/')):
-            return f
-    return None
-
 def upload(path):
-    name = os.path.basename(path); content = open(path, 'rb').read(); ctype = mimetypes.guess_type(name)[0] or 'application/json'
-    if DRY: print(f'[dry-run] would upload {name} ({len(content)} bytes) to /{FOLDER}'); return
-    existing = find_file(name)
-    options = json.dumps({"access": "PUBLIC_NOT_INDEXABLE", "overwrite": True})
-    if existing:
-        body, ct = multipart({"options": json.dumps({"access": "PUBLIC_NOT_INDEXABLE"})}, name, content, ctype)
-        res = call('PUT', f"/files/v3/files/{existing['id']}", raw=body, headers={'Content-Type': ct})
-    else:
-        body, ct = multipart({"options": options, "folderPath": '/' + FOLDER.strip('/'), "fileName": name}, name, content, ctype)
-        res = call('POST', '/files/v3/files', raw=body, headers={'Content-Type': ct})
+    """Upload with overwrite: HubSpot replaces a file of the same name in the same folder. Public hubfs URLs are
+    path-based, so the URL the display reads never changes. No search call is needed (and the v3 search endpoint
+    rejects name/extension filters with a 400)."""
+    name = os.path.basename(path); content = open(path, 'rb').read()
+    ctype = mimetypes.guess_type(name)[0] or ('application/json' if name.endswith('.json') else 'text/plain')
+    if DRY:
+        print(f'[dry-run] would upload {name} ({len(content)} bytes) to /{FOLDER.strip("/")}'); return
+    options = json.dumps({"access": "PUBLIC_NOT_INDEXABLE", "overwrite": True,
+                          "duplicateValidationStrategy": "NONE", "duplicateValidationScope": "EXACT_FOLDER"})
+    body, ct = multipart({"options": options, "folderPath": '/' + FOLDER.strip('/'), "fileName": name}, name, content, ctype)
+    res = call('POST', '/files/v3/files', raw=body, headers={'Content-Type': ct})
     print('uploaded', name, '->', res.get('url') or res.get('id'))
 
 if __name__ == '__main__':
