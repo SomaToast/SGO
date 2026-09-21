@@ -188,6 +188,11 @@ def main():
         try: m = meteors_aggregate('meteors.json'); print('meteors', m['date'], m['source'], m['total'])
         except Exception as ex: print('meteors skipped:', str(ex)[:120], file=sys.stderr)
     ok = sum(1 for e in out['offices'] if 'merged' in e); print(f"offices {ok}/{len(offices)} with weather")
+    if not ok:
+        for e in out['offices']:
+            print(f"  {e['name']}: met_error={e.get('met_error')} observation={(e.get('observation') or {}).get('error')}", file=sys.stderr)
+        print("No office produced a forecast. Most likely the runner could not reach api.met.no; the display keeps its "
+              "last good file and its own direct sources, so the screen is not blank.", file=sys.stderr)
     return 0 if ok else 1
 
 if __name__ == '__main__': sys.exit(main())

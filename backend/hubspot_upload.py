@@ -8,19 +8,27 @@ Behaviour (HubSpot Files API v3, docs 2026-09): search the folder for the file; 
 (replace file data, URL unchanged); else -> POST /files/v3/files with folderPath, fileName and options
 {access: PUBLIC_NOT_INDEXABLE, overwrite: true}. The owner's first Run workflow is the live test.
 """
-import os, sys, json, mimetypes, uuid, urllib.request, urllib.parse
+import os, sys, json, mimetypes, uuid, urllib.request, urllib.parse, urllib.error
 
 # Service Key (current) or legacy private-app token: both are Bearer tokens
 TOKEN = os.environ.get('HUBSPOT_SERVICE_KEY') or os.environ.get('HUBSPOT_PRIVATE_APP_TOKEN'); FOLDER = os.environ.get('HUBSPOT_FOLDER', 'Office_Screen'); DRY = os.environ.get('DRY_RUN') == '1'
 API = 'https://api.hubapi.com'
 
+HINTS = {401: "the key is wrong or revoked — re-copy it into the repository secret",
+         403: "the key lacks the 'files' scope, or the account cannot use the Files API",
+         404: "check HUBSPOT_FOLDER matches the Files folder name exactly",
+         429: "HubSpot rate limit — the next scheduled run will retry"}
 def call(method, path, body=None, headers=None, raw=None):
     req = urllib.request.Request(API + path, method=method)
     req.add_header('Authorization', 'Bearer ' + TOKEN)
     if body is not None: req.add_header('Content-Type', 'application/json'); data = json.dumps(body).encode()
     else: data = raw
     for k, v in (headers or {}).items(): req.add_header(k, v)
-    with urllib.request.urlopen(req, data=data, timeout=60) as r: return json.loads(r.read().decode() or '{}')
+    try:
+        with urllib.request.urlopen(req, data=data, timeout=60) as r: return json.loads(r.read().decode() or '{}')
+    except urllib.error.HTTPError as e:
+        detail = (e.read().decode('utf-8', 'replace') or '')[:300]
+        sys.exit(f"HubSpot {method} {path} -> HTTP {e.code}. {HINTS.get(e.code, '')}\n  response: {detail}")
 
 def multipart(fields, filename, content, ctype):
     b = uuid.uuid4().hex; out = b''
@@ -51,5 +59,8 @@ def upload(path):
     print('uploaded', name, '->', res.get('url') or res.get('id'))
 
 if __name__ == '__main__':
-    if not TOKEN and not DRY: sys.exit('HUBSPOT_SERVICE_KEY missing (or set DRY_RUN=1)')
+    if not TOKEN and not DRY:
+        sys.exit("No HubSpot credential in the environment. Looked for HUBSPOT_SERVICE_KEY, then HUBSPOT_PRIVATE_APP_TOKEN.\n"
+                 "Create a Service Key in HubSpot (Development -> Keys -> Service keys, scope 'files'), then add it as the\n"
+                 "repository secret HUBSPOT_SERVICE_KEY (Settings -> Secrets and variables -> Actions). Or set DRY_RUN=1 to test.")
     for p in sys.argv[1:]: upload(p)
