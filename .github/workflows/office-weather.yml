@@ -1,4 +1,7 @@
 name: office-display data
+# Runner and action versions verified 2026-09-21: actions/checkout v6 and actions/setup-python v6 run on Node 24
+# (v4/v5 target the deprecated Node 20); ubuntu-24.04 is pinned because the ubuntu-latest label migrates to
+# Ubuntu 26 on 2026-10-19. Re-check both before October 2026 (see DEPENDENCY-REVIEW.md).
 on:
   schedule:
     - cron: "*/15 * * * *"        # offices: MET forecast + station reading + radar (free, public; no keys)
@@ -7,15 +10,27 @@ on:
   workflow_dispatch: {}           # manual run = everything
 permissions: { contents: read }
 concurrency: { group: office-display-data, cancel-in-progress: true }
+env:
+  PYTHONUNBUFFERED: "1"
 jobs:
   fetch-and-publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install -r backend/requirements.txt
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.13" }
+      - name: Check the HubSpot credential is present
+        env:
+          HUBSPOT_SERVICE_KEY: ${{ secrets.HUBSPOT_SERVICE_KEY }}
+          HUBSPOT_PRIVATE_APP_TOKEN: ${{ secrets.HUBSPOT_PRIVATE_APP_TOKEN }}
+        run: |
+          if [ -z "$HUBSPOT_SERVICE_KEY" ] && [ -z "$HUBSPOT_PRIVATE_APP_TOKEN" ]; then
+            echo "::error title=Missing credential::No HubSpot credential found. Add a repository secret named HUBSPOT_SERVICE_KEY (HubSpot -> Development -> Keys -> Service keys, scope 'files'). Settings -> Secrets and variables -> Actions -> New repository secret. A legacy private-app token also works under the name HUBSPOT_PRIVATE_APP_TOKEN."
+            exit 1
+          fi
+          echo "credential present (${#HUBSPOT_SERVICE_KEY} / ${#HUBSPOT_PRIVATE_APP_TOKEN} chars)"
+      - run: pip install --disable-pip-version-check -r backend/requirements.txt
       - name: Fetch
         working-directory: backend
         env:
