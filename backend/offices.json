@@ -1,0 +1,5 @@
+[
+  {"name": "Amsterdam", "lat": 52.37, "lon": 4.90, "tz": "Europe/Amsterdam"},
+  {"name": "Helsinki",  "lat": 60.17, "lon": 24.94, "tz": "Europe/Helsinki"},
+  {"name": "Berlin",    "lat": 52.52, "lon": 13.40, "tz": "Europe/Berlin"}
+]
